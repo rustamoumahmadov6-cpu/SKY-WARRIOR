@@ -3,14 +3,98 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SKY WARRIOR</title>
+  <meta name="theme-color" content="#07111f">
+  <title>SKY-WARRIOR</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="game"></canvas>
-  <h1>SKY WARRIOR</h1>
-  <p>Омода барои парвоз?</p>
-  <button onclick="startGame()">ОҒОЗИ ПАРВОЗ</button>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <header class="topbar">
+      <div class="logo">✈ SKY-WARRIOR</div>
+      <div id="missionBadge">FREE FLIGHT</div>
+    </header>
+
+    <main id="mainMenu" class="panel">
+      <p class="eyebrow">FLIGHT SIMULATOR</p>
+      <h1>SKY-WARRIOR</h1>
+      <p class="subtitle">Осмонро забт кун!</p>
+
+      <label for="aircraftSelect">Интихоби самолёт</label>
+      <select id="aircraftSelect">
+        <option value="fighter">FIGHTER</option>
+        <option value="eagle">EAGLE</option>
+        <option value="falcon">FALCON</option>
+      </select>
+
+      <button id="freeFlightBtn" class="primary">✈ ОҒОЗИ ПАРВОЗ</button>
+      <button id="missionBtn">🎯 ИНТИХОБИ МИССИЯ</button>
+
+      <p class="help">
+        Телефон: тугмаҳои экранро истифода бар.<br>
+        Компютер: WASD ё тугмаҳои тирча.
+      </p>
+    </main>
+
+    <section id="missionPanel" class="panel hidden">
+      <h2>ИНТИХОБИ МИССИЯ</h2>
+      <button class="mission-card" data-mission="rings">
+        🎯 Гузаштан аз ҳалқаҳо
+      </button>
+      <button class="mission-card" data-mission="distance">
+        🌍 Парвози масофавӣ
+      </button>
+      <button class="mission-card" data-mission="altitude">
+        ☁️ Баландпарвозӣ
+      </button>
+      <button id="backBtn">← Бозгашт</button>
+    </section>
+
+    <section id="hud" class="hidden">
+      <div class="stats">
+        <div class="stat"><small>СУРЪАТ</small><strong id="speed">0</strong><small>км/соат</small></div>
+        <div class="stat"><small>БАЛАНДӢ</small><strong id="altitude">500</strong><small>метр</small></div>
+        <div class="stat"><small>САМТ</small><strong id="heading">000°</strong></div>
+        <div class="stat"><small>ХОЛ</small><strong id="score">0</strong></div>
+      </div>
+      <p id="objective">Омодаи парвоз!</p>
+      <div class="game-buttons">
+        <button id="pauseBtn">⏸ Ист</button>
+        <button id="soundBtn">🔊 Садо</button>
+        <button id="resetBtn">↻ Аз нав</button>
+      </div>
+    </section>
+
+    <section id="mobileControls" class="mobile-controls hidden">
+      <div class="control-group">
+        <button data-control="left">◀</button>
+        <button data-control="right">▶</button>
+      </div>
+      <div class="control-group vertical">
+        <button data-control="up">▲</button>
+        <button data-control="down">▼</button>
+      </div>
+      <div class="control-group">
+        <button data-control="accelerate">⚡ Газ</button>
+        <button data-control="brake">Тормоз</button>
+      </div>
+    </section>
+
+    <section id="pausePanel" class="panel hidden">
+      <h2>ПАРВОЗ ТАВАҚҚУФ ШУД</h2>
+      <button id="resumeBtn" class="primary">▶ ИДОМА</button>
+      <button id="exitBtn">🏠 МЕНЮ</button>
+    </section>
+
+    <section id="resultPanel" class="panel hidden">
+      <h2 id="resultTitle">ОФАРИН!</h2>
+      <p id="resultText">Миссия анҷом ёфт.</p>
+      <button id="againBtn" class="primary">↻ БОЗӢ КАРДАН</button>
+      <button id="resultMenuBtn">🏠 МЕНЮ</button>
+    </section>
+  </div>
+
   <script src="game.js"></script>
 </body>
 </html>
