@@ -2,61 +2,272 @@
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: dark;
+  font-family: Arial, sans-serif;
+  background: #07111f;
+  color: #fff;
+}
+
 body {
   margin: 0;
+  min-height: 100vh;
   overflow: hidden;
-  background: #061321;
-  color: white;
-  font-family: Arial, sans-serif;
-  text-align: center;
+  background: #07111f;
 }
 
-#game {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    #071b36,
-    #2876a4,
-    #b5d8e7
-  );
-}
-
-h1, p, button {
-  position: relative;
-  z-index: 2;
-}
-
-h1 {
-  margin-top: 25vh;
-  font-size: clamp(42px, 12vw, 80px);
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: 4px;
-  color: #f5c76b;
-  text-shadow: 0 0 25px #e6a83c66;
-}
-
-p {
-  color: #d4e7f5;
-  letter-spacing: 2px;
+button, select {
+  font: inherit;
 }
 
 button {
-  margin-top: 25px;
-  padding: 17px 30px;
-  border: 1px solid #ffe0a0;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #ffe4a1, #d99b32);
-  color: #101b28;
-  font-size: 14px;
-  font-weight: bold;
-  letter-spacing: 2px;
+  border: 1px solid #34516e;
+  border-radius: 12px;
+  background: #142b43;
+  color: white;
+  padding: 13px 16px;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 0 25px #f5c76b44;
+  touch-action: manipulation;
 }
 
 button:active {
-  transform: scale(.96);
+  transform: scale(.97);
+  background: #245078;
+}
+
+button.primary {
+  color: #06101a;
+  background: #45d7ff;
+  border-color: #45d7ff;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  min-height: 480px;
+  overflow: hidden;
+  background: linear-gradient(#157ab2, #9bdaf2 60%, #e2f5ff);
+}
+
+#game {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(#07111fe8, transparent);
+  pointer-events: none;
+}
+
+.logo {
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #ffe18a;
+  text-shadow: 0 2px 10px #0008;
+}
+
+#missionBadge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #75e4ff;
+  background: #07111fc9;
+  border: 1px solid #ffffff33;
+  border-radius: 20px;
+  padding: 8px 10px;
+}
+
+.panel {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(88%, 390px);
+  max-height: 82%;
+  overflow-y: auto;
+  padding: 25px;
+  border: 1px solid #80cfff55;
+  border-radius: 22px;
+  background: #081727ee;
+  box-shadow: 0 18px 70px #0007;
+  text-align: center;
+  backdrop-filter: blur(14px);
+}
+
+.panel h1 {
+  margin: 5px 0;
+  font-size: clamp(27px, 7vw, 40px);
+  color: #fff;
+}
+
+.panel h2 {
+  font-size: 21px;
+}
+
+.eyebrow {
+  color: #49d9ff;
+  letter-spacing: 4px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.subtitle {
+  color: #b6d9ee;
+  margin-bottom: 24px;
+}
+
+.panel label {
+  display: block;
+  text-align: left;
+  color: #c7dceb;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+
+.panel select {
+  width: 100%;
+  padding: 13px;
+  margin-bottom: 12px;
+  border: 1px solid #34516e;
+  border-radius: 10px;
+  background: #10263a;
+  color: white;
+}
+
+.panel > button {
+  display: block;
+  width: 100%;
+  margin-top: 11px;
+}
+
+.help {
+  margin-top: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #a9c5d9;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#hud {
+  position: absolute;
+  z-index: 2;
+  top: 72px;
+  left: 12px;
+  right: 12px;
+  pointer-events: none;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.stat {
+  min-width: 0;
+  padding: 9px 4px;
+  border: 1px solid #ffffff38;
+  border-radius: 10px;
+  background: #071727b8;
+  text-align: center;
+}
+
+.stat small {
+  display: block;
+  font-size: 9px;
+  color: #a8d8f4;
+}
+
+.stat strong {
+  display: block;
+  margin: 4px 0;
+  font-size: clamp(15px, 4vw, 22px);
+}
+
+#objective {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: #071727bd;
+  color: white;
+  font-size: 12px;
+}
+
+.game-buttons {
+  display: flex;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.game-buttons button {
+  flex: 1;
+  padding: 9px 5px;
+  font-size: 12px;
+}
+
+.mobile-controls {
+  position: absolute;
+  z-index: 3;
+  left: 12px;
+  right: 12px;
+  bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 10px;
+}
+
+.control-group {
+  display: flex;
+  gap: 7px;
+}
+
+.control-group button {
+  min-width: 48px;
+  min-height: 49px;
+  padding: 9px;
+  background: #071727bd;
+  border-color: #b9e8ff80;
+}
+
+.control-group.vertical {
+  flex-direction: column;
+}
+
+.mission-card {
+  text-align: left;
+}
+
+@media (min-width: 700px) {
+  .panel {
+    padding: 32px;
+  }
+
+  .mobile-controls {
+    max-width: 700px;
+    left: 50%;
+    right: auto;
+    width: 90%;
+    transform: translateX(-50%);
+  }
+
+  .stat small {
+    font-size: 11px;
+  }
 }
