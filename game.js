@@ -1,567 +1,543 @@
 "use strict";
 
-// SKY WARRIOR - Flight Engine v1
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let W = 0, H = 0;
-let running = false;
+const $ = (id) => document.getElementById(id);
+
+const ui = {
+  main: $("mainMenu"),
+  missions: $("missionPanel"),
+  hud: $("hud"),
+  pause: $("pausePanel"),
+  result: $("resultPanel"),
+  badge: $("missionBadge"),
+  speed: $("speed"),
+  altitude: $("altitude"),
+  heading: $("heading"),
+  score: $("score"),
+  objective: $("objective"),
+  controls: $("mobileControls"),
+  aircraft: $("aircraftSelect")
+};
+
+let W = 0;
+let H = 0;
 let lastTime = 0;
-let elapsed = 0;
+let running = false;
+let paused = false;
+let mission = "free";
+let soundOn = true;
+let audio = null;
+let animationId = 0;
+let rings = [];
+let clouds = [];
+let score = 0;
+let distance = 0;
+let ringCount = 0;
+let worldTime = 0;
+
+const keys = Object.create(null);
+const touch = Object.create(null);
 
 const plane = {
   x: 0,
   y: 0,
-  speed: 280,
-  altitude: 1200,
+  speed: 120,
+  altitude: 500,
   heading: 0,
   pitch: 0,
-  roll: 0,
-  score: 0
+  roll: 0
 };
 
-const input = {
-  left: false,
-  right: false,
-  up: false,
-  down: false,
-  boost: false
-};
-
-let clouds = [];
-let stars = [];
-let rings = [];
-let mission = "free";
-let ringsPassed = 0;
-let muted = false;
-let audioContext = null;
-
-function resize() {
+function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth;
   H = window.innerHeight;
-
-  canvas.width = Math.round(W * dpr);
-  canvas.height = Math.round(H * dpr);
+  canvas.width = Math.floor(W * dpr);
+  canvas.height = Math.floor(H * dpr);
   canvas.style.width = W + "px";
   canvas.style.height = H + "px";
-
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  plane.x = W / 2;
-  plane.y = H * 0.60;
-
-  createSky();
-  draw();
+  drawScene();
 }
 
-function random(min, max) {
-  return Math.random() * (max - min) + min;
+function randomRange(min, max) {
+  return min + Math.random() * (max - min);
 }
 
-function createSky() {
+function makeWorld() {
   clouds = [];
-  stars = [];
+  rings = [];
 
-  for (let i = 0; i < 65; i++) {
+  for (let i = 0; i < 22; i++) {
     clouds.push({
-      x: random(-W, W * 2),
-      y: random(-H, H),
-      size: random(18, 75),
-      depth: random(0.2, 1)
+      x: randomRange(0, W),
+      y: randomRange(0, H * 0.72),
+      size: randomRange(20, 65),
+      depth: randomRange(0.3, 1)
     });
   }
 
-  for (let i = 0; i < 90; i++) {
-    stars.push({
-      x: random(0, W),
-      y: random(0, H * 0.55),
-      size: random(0.5, 2)
+  for (let i = 0; i < 8; i++) {
+    rings.push({
+      x: randomRange(-W * 0.4, W * 0.4),
+      y: randomRange(-H * 0.3, H * 0.3),
+      z: 600 + i * 420,
+      passed: false
     });
   }
 }
 
-function sky() {
-  const gradient = ctx.createLinearGradient(0, 0, 0, H);
-  gradient.addColorStop(0, "#07162e");
-  gradient.addColorStop(0.36, "#28658e");
-  gradient.addColorStop(0.72, "#8fc1d7");
-  gradient.addColorStop(1, "#e4d8bd");
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, W, H);
-
-  stars.forEach(s => {
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.fillRect(s.x, s.y, s.size, s.size);
-  });
-
-  const glow = ctx.createRadialGradient(
-    W * 0.76, H * 0.27, 5,
-    W * 0.76, H * 0.27, H * 0.35
-  );
-
-  glow.addColorStop(0, "rgba(255,225,160,0.45)");
-  glow.addColorStop(1, "rgba(255,225,160,0)");
-
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  // Distant mountain silhouettes
-  drawMountains(H * 0.70, "#526f82", 0.035);
-  drawMountains(H * 0.76, "#314f63", 0.055);
-  drawMountains(H * 0.83, "#203b4e", 0.08);
-}
-
-function drawMountains(base, color, heightFactor) {
+function drawCloud(cloud) {
+  const size = cloud.size;
+  ctx.fillStyle = "rgba(255,255,255,0.83)";
   ctx.beginPath();
-  ctx.moveTo(0, H);
+  ctx.ellipse(cloud.x, cloud.y, size, size * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    cloud.x - size * 0.3,
+    cloud.y - size * 0.1,
+    size * 0.45,
+    size * 0.3,
+    0, 0, Math.PI * 2
+  );
+  ctx.ellipse(
+    cloud.x + size * 0.3,
+    cloud.y - size * 0.13,
+    size * 0.5,
+    size * 0.34,
+    0, 0, Math.PI * 2
+  );
+  ctx.fill();
+}
 
-  for (let x = 0; x <= W + 20; x += 20) {
-    const wave =
-      Math.sin(x * 0.012 + elapsed * 0.00008) * 0.5 +
-      Math.sin(x * 0.027) * 0.3 +
-      Math.cos(x * 0.006) * 0.2;
+function drawMountains() {
+  const horizon = H * 0.62 + plane.pitch * 1.2;
 
-    ctx.lineTo(x, base - wave * H * heightFactor * 5);
+  ctx.fillStyle = "#567d80";
+  ctx.beginPath();
+  ctx.moveTo(0, horizon);
+
+  for (let x = 0; x <= W + 80; x += 80) {
+    const y = horizon - randomMountain(x) * 0.15;
+    ctx.lineTo(x, y);
   }
 
   ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
   ctx.closePath();
-  ctx.fillStyle = color;
+  ctx.fill();
+
+  ctx.fillStyle = "#385c68";
+  ctx.beginPath();
+  ctx.moveTo(0, horizon + 35);
+
+  for (let x = 0; x <= W + 70; x += 70) {
+    ctx.lineTo(x, horizon + 20 - randomMountain(x + 170) * 0.12);
+  }
+
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
   ctx.fill();
 }
 
-function drawCloud(c) {
-  const x = c.x;
-  const y = c.y;
-  const s = c.size;
-
-  ctx.save();
-  ctx.globalAlpha = 0.12 + c.depth * 0.30;
-  ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "#ffffff";
-  ctx.shadowBlur = 18 * c.depth;
-
-  ctx.beginPath();
-  ctx.ellipse(x, y, s, s * 0.28, 0, 0, Math.PI * 2);
-  ctx.ellipse(x - s * 0.35, y + 2, s * 0.48, s * 0.24, 0, 0, Math.PI * 2);
-  ctx.ellipse(x + s * 0.3, y - s * 0.08, s * 0.52, s * 0.32, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
+function randomMountain(x) {
+  return Math.abs(Math.sin(x * 0.018) * 120 +
+    Math.sin(x * 0.047) * 65);
 }
 
 function drawPlane() {
-  const x = W / 2 + plane.x - W / 2;
-  const y = H * 0.62 + plane.pitch * 35;
-
   ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(plane.roll * 0.42);
+  ctx.translate(W / 2, H * 0.57);
+  ctx.rotate(plane.roll * 0.008);
 
-  const passenger =
-    document.getElementById("aircraftSelect").value === "passenger";
+  ctx.fillStyle = "#101e2a";
+  ctx.strokeStyle = "#c8e9f5";
+  ctx.lineWidth = 1.5;
 
-  // Engine glow
-  if (plane.speed > 350) {
-    ctx.fillStyle = "rgba(76,220,255,0.35)";
-    ctx.beginPath();
-    ctx.ellipse(0, 24, 5, plane.speed / 35, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.shadowColor = "#00111e";
-  ctx.shadowBlur = 12;
-
-  // Wings
-  ctx.fillStyle = passenger ? "#f2f4f5" : "#b6c7d2";
   ctx.beginPath();
-  ctx.moveTo(0, -29);
-  ctx.lineTo(passenger ? 10 : 7, -6);
-  ctx.lineTo(38, 13);
-  ctx.lineTo(35, 18);
-  ctx.lineTo(7, 9);
-  ctx.lineTo(5, 22);
-  ctx.lineTo(13, 28);
-  ctx.lineTo(11, 31);
-  ctx.lineTo(2, 27);
-  ctx.lineTo(0, 34);
-  ctx.lineTo(-2, 27);
-  ctx.lineTo(-11, 31);
-  ctx.lineTo(-13, 28);
-  ctx.lineTo(-5, 22);
-  ctx.lineTo(-7, 9);
-  ctx.lineTo(-35, 18);
-  ctx.lineTo(-38, 13);
-  ctx.lineTo(-7, -6);
+  ctx.moveTo(0, -42);
+  ctx.lineTo(9, -8);
+  ctx.lineTo(43, 15);
+  ctx.lineTo(43, 23);
+  ctx.lineTo(7, 17);
+  ctx.lineTo(4, 35);
+  ctx.lineTo(17, 43);
+  ctx.lineTo(17, 48);
+  ctx.lineTo(0, 43);
+  ctx.lineTo(-17, 48);
+  ctx.lineTo(-17, 43);
+  ctx.lineTo(-4, 35);
+  ctx.lineTo(-7, 17);
+  ctx.lineTo(-43, 23);
+  ctx.lineTo(-43, 15);
+  ctx.lineTo(-9, -8);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
 
-  // Cockpit
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "#183e55";
+  ctx.fillStyle = "#45d7ff";
   ctx.beginPath();
-  ctx.ellipse(0, -13, 3.5, 8, 0, 0, Math.PI * 2);
+  ctx.moveTo(0, -33);
+  ctx.lineTo(4, -7);
+  ctx.lineTo(0, 2);
+  ctx.lineTo(-4, -7);
+  ctx.closePath();
   ctx.fill();
 
   ctx.restore();
 }
 
-function drawReticle() {
-  const x = W / 2;
-  const y = H * 0.43;
+function drawRings() {
+  if (mission !== "rings") return;
 
-  ctx.strokeStyle = "rgba(159,245,255,0.8)";
-  ctx.lineWidth = 1;
+  for (const ring of rings) {
+    if (ring.passed) continue;
 
-  ctx.beginPath();
-  ctx.moveTo(x - 17, y);
-  ctx.lineTo(x - 6, y);
-  ctx.moveTo(x + 6, y);
-  ctx.lineTo(x + 17, y);
-  ctx.moveTo(x, y - 17);
-  ctx.lineTo(x, y - 6);
-  ctx.moveTo(x, y + 6);
-  ctx.lineTo(x, y + 17);
-  ctx.stroke();
+    const scale = 500 / Math.max(100, ring.z);
+    const x = W / 2 + ring.x * scale;
+    const y = H * 0.57 + ring.y * scale;
+    const radius = Math.max(4, 45 * scale);
+
+    ctx.strokeStyle = "#ffe37b";
+    ctx.lineWidth = Math.max(2, 7 * scale);
+    ctx.beginPath();
+    ctx.ellipse(x, y, radius, radius * 1.15, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 }
 
-function draw() {
+function drawScene() {
   if (!W || !H) return;
 
-  sky();
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, "#0876b8");
+  sky.addColorStop(0.58, "#7dc8ed");
+  sky.addColorStop(1, "#e4f7ff");
 
-  clouds.forEach(drawCloud);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
 
-  if (running) {
-    drawRings();
-  }
+  for (const cloud of clouds) drawCloud(cloud);
 
+  drawMountains();
+  drawRings();
   drawPlane();
-  drawReticle();
-}
 
-function drawRings() {
-  rings.forEach(r => {
-    const scale = Math.max(0.1, r.depth);
-    const x = W / 2 + r.x * scale;
-    const y = H * 0.45 + r.y * scale;
-    const radius = 60 * scale;
-
-    ctx.strokeStyle = "#ffe09a";
-    ctx.lineWidth = Math.max(1, 4 * scale);
-    ctx.shadowColor = "#ffbd4a";
-    ctx.shadowBlur = 12;
-
-    ctx.beginPath();
-    ctx.ellipse(x, y, radius, radius * 0.72, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.shadowBlur = 0;
-    r.depth -= 0.003 * (plane.speed / 280);
-
-    if (r.depth <= 0.12) {
-      r.depth = random(0.9, 1.3);
-      r.x = random(-W * 0.4, W * 0.4);
-      r.y = random(-H * 0.25, H * 0.25);
-    }
-  });
-}
-
-function update(dt) {
-  if (!running) return;
-
-  elapsed += dt * 1000;
-
-  const acceleration = input.boost ? 440 : 140;
-  const maxSpeed =
-    document.getElementById("aircraftSelect").value === "passenger"
-      ? 920 : 1850;
-
-  if (input.boost) {
-    plane.speed += acceleration * dt;
-  } else {
-    plane.speed += (280 - plane.speed) * dt * 0.12;
-  }
-
-  plane.speed = Math.max(0, Math.min(maxSpeed, plane.speed));
-
-  if (input.left) plane.roll = Math.max(-1, plane.roll - dt * 2);
-  else if (input.right) plane.roll = Math.min(1, plane.roll + dt * 2);
-  else plane.roll *= 0.94;
-
-  if (input.up) plane.pitch = Math.max(-1, plane.pitch - dt);
-  if (input.down) plane.pitch = Math.min(1, plane.pitch + dt);
-
-  plane.heading =
-    (plane.heading + plane.roll * dt * 40 + 360) % 360;
-
-  plane.altitude += plane.pitch * dt * 75;
-  plane.altitude = Math.max(100, Math.min(15000, plane.altitude));
-
-  clouds.forEach(c => {
-    c.y += (plane.speed / 280) * c.depth * dt * 32;
-    c.x -= plane.roll * c.depth * dt * 90;
-
-    if (c.y > H + 100) {
-      c.y = -100;
-      c.x = random(-W, W * 2);
-    }
-
-    if (c.x < -150) c.x = W + 100;
-    if (c.x > W + 150) c.x = -100;
-  });
-
-  plane.score += dt * plane.speed / 10;
-
-  updateHUD();
-  updateMission(dt);
-}
-
-function updateHUD() {
-  const speed = document.getElementById("speed");
-  const altitude = document.getElementById("altitude");
-  const heading = document.getElementById("heading");
-  const score = document.getElementById("score");
-
-  if (speed) speed.textContent = Math.round(plane.speed);
-  if (altitude) altitude.textContent = Math.round(plane.altitude);
-  if (heading) heading.textContent = String(Math.round(plane.heading)).padStart(3, "0");
-  if (score) score.textContent = String(Math.floor(plane.score)).padStart(6, "0");
-}
-
-function updateMission(dt) {
-  if (mission === "distance" && plane.score >= 1500) {
-    completeMission("LONG HAUL", "Масофаи ҳадаф тай шуд!");
-  }
-
-  if (mission === "altitude" && plane.altitude >= 5000) {
-    completeMission("HIGH ALTITUDE", "Ба баландии 5000 метр расидӣ!");
-  }
-
-  if (mission === "rings") {
-    ringsPassed += dt * (plane.speed / 280);
-
-    if (ringsPassed >= 20) {
-      completeMission("GATE RUN", "Миссия бомуваффақият анҷом ёфт!");
-    }
+  if (running && !paused) {
+    ctx.fillStyle = "#071727bb";
+    ctx.font = "bold 12px Arial";
+    ctx.fillText("SKY-WARRIOR", 16, H - 18);
   }
 }
 
-function completeMission(title, message) {
-  running = false;
-  document.getElementById("hud").classList.add("hidden");
+function setPanel(panel) {
+  for (const name of ["main", "missions", "hud", "pause", "result"]) {
+    ui[name].classList.add("hidden");
+  }
 
-  document.getElementById("resultTitle").textContent = title;
-  document.getElementById("resultText").textContent =
-    message + " Холҳо: " + Math.floor(plane.score);
-
-  document.getElementById("resultPanel").classList.remove("hidden");
+  if (panel) ui[panel].classList.remove("hidden");
 }
 
-function startGame(mode = "free") {
-  mission = mode;
-  running = true;
-  elapsed = 0;
-  ringsPassed = 0;
-
-  plane.speed = 280;
-  plane.altitude = 1200;
+function resetFlight() {
+  plane.x = 0;
+  plane.y = 0;
+  plane.speed = 120;
+  plane.altitude = 500;
   plane.heading = 0;
   plane.pitch = 0;
   plane.roll = 0;
-  plane.score = 0;
 
-  rings = [];
+  score = 0;
+  distance = 0;
+  ringCount = 0;
+  worldTime = 0;
 
-  for (let i = 0; i < 6; i++) {
-    rings.push({
-      x: random(-W * 0.3, W * 0.3),
-      y: random(-H * 0.2, H * 0.2),
-      depth: random(0.4, 1.3)
-    });
-  }
-
-  document.getElementById("mainMenu").classList.add("hidden");
-  document.getElementById("missionPanel").classList.add("hidden");
-  document.getElementById("pausePanel").classList.add("hidden");
-  document.getElementById("resultPanel").classList.add("hidden");
-  document.getElementById("hud").classList.remove("hidden");
-
-  document.getElementById("missionBadge").textContent =
-    mode === "free" ? "FREE FLIGHT" : "MISSION: " + mode.toUpperCase();
-
-  const objective = document.getElementById("objective");
-  if (objective) {
-    objective.textContent =
-      mode === "free" ? "FREE FLIGHT · EXPLORE" :
-      mode === "rings" ? "GATE RUN · FLY THROUGH THE SKY" :
-      mode === "distance" ? "LONG HAUL · KEEP FLYING" :
-      "HIGH ALTITUDE · CLIMB TO 5000 M";
-  }
-
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
+  makeWorld();
+  updateHUD();
 }
 
-function loop(now) {
-  if (!running) return;
+function startGame(selectedMission = "free") {
+  mission = selectedMission;
+  paused = false;
+  running = true;
 
-  const dt = Math.min((now - lastTime) / 1000, 0.04);
-  lastTime = now;
+  resetFlight();
+  setPanel("hud");
+  ui.controls.classList.remove("hidden");
 
-  update(dt);
-  draw();
+  const names = {
+    free: "FREE FLIGHT",
+    rings: "RING CHALLENGE",
+    distance: "DISTANCE RUN",
+    altitude: "ALTITUDE CHALLENGE"
+  };
 
-  requestAnimationFrame(loop);
+  ui.badge.textContent = names[mission] || names.free;
+  ui.objective.textContent = getObjective();
+  lastTime = performance.now();
+
+  if (animationId) cancelAnimationFrame(animationId);
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+function getObjective() {
+  if (mission === "rings") return "Аз ҳалқаҳои зард гузар!";
+  if (mission === "distance") return "Масофаи парвозро зиёд кун!";
+  if (mission === "altitude") return "Ба баландии 3000 метр бирас!";
+  return "Ба парвоз оғоз кун!";
+}
+
+function updateFlight(dt) {
+  const left = keys.ArrowLeft || keys.a || touch.left;
+  const right = keys.ArrowRight || keys.d || touch.right;
+  const up = keys.ArrowUp || keys.w || touch.up;
+  const down = keys.ArrowDown || keys.s || touch.down;
+  const accelerating = keys.Shift || keys[" "] || touch.accelerate;
+  const braking = keys.Control || touch.brake;
+
+  if (accelerating) plane.speed += 100 * dt;
+  else plane.speed -= 12 * dt;
+
+  if (braking) plane.speed -= 140 * dt;
+
+  plane.speed = Math.max(0, Math.min(850, plane.speed));
+
+  if (left) plane.heading -= 65 * dt;
+  if (right) plane.heading += 65 * dt;
+
+  plane.heading = (plane.heading + 360) % 360;
+
+  if (up) plane.pitch = Math.max(-120, plane.pitch - 90 * dt);
+  if (down) plane.pitch = Math.min(120, plane.pitch + 90 * dt);
+
+  plane.pitch *= Math.pow(0.95, dt * 60);
+  plane.roll = (right ? 1 : 0) - (left ? 1 : 0);
+
+  plane.altitude += (-plane.pitch * 0.9 + (plane.speed - 120) * 0.02) * dt;
+  plane.altitude = Math.max(0, Math.min(12000, plane.altitude));
+
+  const travelled = plane.speed * dt / 3.6;
+  distance += travelled;
+  worldTime += dt;
+
+  for (const cloud of clouds) {
+    cloud.x -= (plane.speed * 0.05 + 12) * cloud.depth * dt;
+    if (cloud.x < -100) {
+      cloud.x = W + 100;
+      cloud.y = randomRange(0, H * 0.65);
+    }
+  }
+
+  if (mission === "rings") {
+    for (const ring of rings) {
+      ring.z -= plane.speed * 0.55 * dt;
+
+      if (!ring.passed && ring.z < 60) {
+        ring.passed = true;
+        ringCount++;
+        score += 100;
+      }
+    }
+
+    if (rings.every(r => r.passed)) {
+      for (let i = 0; i < 8; i++) {
+        rings.push({
+          x: randomRange(-W * 0.4, W * 0.4),
+          y: randomRange(-H * 0.3, H * 0.3),
+          z: 600 + i * 420,
+          passed: false
+        });
+      }
+    }
+  } else {
+    score = Math.floor(distance / 10);
+  }
+
+  if (mission === "altitude" && plane.altitude >= 3000) {
+    finishGame("МИССИЯ ИҶРО ШУД!", "Ту ба баландии 3000 метр расидӣ!");
+    return;
+  }
+
+  updateHUD();
+}
+
+function updateHUD() {
+  ui.speed.textContent = Math.round(plane.speed);
+  ui.altitude.textContent = Math.round(plane.altitude);
+  ui.heading.textContent = String(Math.round(plane.heading)).padStart(3, "0") + "°";
+  ui.score.textContent = score;
+
+  if (mission === "rings") {
+    ui.objective.textContent = "Ҳалқаҳо: " + ringCount;
+  } else if (mission === "distance") {
+    ui.objective.textContent = "Масофа: " + (distance / 1000).toFixed(2) + " км";
+  } else {
+    ui.objective.textContent = getObjective();
+  }
+}
+
+function gameLoop(time) {
+  if (!running || paused) return;
+
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  updateFlight(dt);
+  drawScene();
+
+  if (running && !paused) {
+    animationId = requestAnimationFrame(gameLoop);
+  }
 }
 
 function pauseGame() {
   if (!running) return;
-
-  running = false;
-  document.getElementById("pausePanel").classList.remove("hidden");
+  paused = true;
+  setPanel("pause");
+  ui.controls.classList.add("hidden");
+  drawScene();
 }
 
 function resumeGame() {
-  document.getElementById("pausePanel").classList.add("hidden");
-  running = true;
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
-
-function exitToMenu() {
-  running = false;
-  document.getElementById("hud").classList.add("hidden");
-  document.getElementById("pausePanel").classList.add("hidden");
-  document.getElementById("resultPanel").classList.add("hidden");
-  document.getElementById("mainMenu").classList.remove("hidden");
-  draw();
-}
-
-function setControl(name, value) {
-  if (name in input) input[name] = value;
-}
-
-window.addEventListener("keydown", e => {
-  const keys = {
-    ArrowLeft: "left", a: "left", A: "left",
-    ArrowRight: "right", d: "right", D: "right",
-    ArrowUp: "up", w: "up", W: "up",
-    ArrowDown: "down", s: "down", S: "down",
-    Shift: "boost"
-  };
-
-  const control = keys[e.key];
-  if (control) {
-    input[control] = true;
-    e.preventDefault();
-  }
-});
-
-window.addEventListener("keyup", e => {
-  const keys = {
-    ArrowLeft: "left", a: "left", A: "left",
-    ArrowRight: "right", d: "right", D: "right",
-    ArrowUp: "up", w: "up", W: "up",
-    ArrowDown: "down", s: "down", S: "down",
-    Shift: "boost"
-  };
-
-  if (keys[e.key]) input[keys[e.key]] = false;
-});
-
-document.querySelectorAll("[data-control]").forEach(button => {
-  const name = button.dataset.control;
-
-  const down = e => {
-    e.preventDefault();
-    setControl(name, true);
-    button.setPointerCapture?.(e.pointerId);
-  };
-
-  const up = e => {
-    e.preventDefault();
-    setControl(name, false);
-  };
-
-  button.addEventListener("pointerdown", down);
-  button.addEventListener("pointerup", up);
-  button.addEventListener("pointercancel", up);
-  button.addEventListener("lostpointercapture", up);
-});
-
-let touchX = null;
-let touchY = null;
-
-canvas.addEventListener("pointerdown", e => {
   if (!running) return;
-  touchX = e.clientX;
-  touchY = e.clientY;
-});
+  paused = false;
+  setPanel("hud");
+  ui.controls.classList.remove("hidden");
+  lastTime = performance.now();
+  animationId = requestAnimationFrame(gameLoop);
+}
 
-canvas.addEventListener("pointermove", e => {
-  if (!running || touchX === null) return;
+function finishGame(title, message) {
+  running = false;
+  paused = false;
+  setPanel("result");
+  ui.controls.classList.add("hidden");
+  $("resultTitle").textContent = title;
+  $("resultText").textContent = message + " Хол: " + score;
+  drawScene();
+}
 
-  const dx = e.clientX - touchX;
-  const dy = e.clientY - touchY;
+function showMenu() {
+  running = false;
+  paused = false;
+  if (animationId) cancelAnimationFrame(animationId);
+  ui.controls.classList.add("hidden");
+  setPanel("main");
+  drawScene();
+}
 
-  plane.roll = Math.max(-1, Math.min(1, dx / 120));
-  plane.pitch = Math.max(-1, Math.min(1, dy / 120));
+function playSound() {
+  if (!soundOn) return;
 
-  touchX = e.clientX;
-  touchY = e.clientY;
-});
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
 
-canvas.addEventListener("pointerup", () => {
-  touchX = null;
-  touchY = null;
-});
+    if (!audio) audio = new AudioContextClass();
+    if (audio.state === "suspended") audio.resume();
 
-document.getElementById("freeFlightBtn")
-  .addEventListener("click", () => startGame("free"));
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
 
-document.getElementById("missionBtn")
-  .addEventListener("click", () => {
-    document.getElementById("mainMenu").classList.add("hidden");
-    document.getElementById("missionPanel").classList.remove("hidden");
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(440, audio.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      660, audio.currentTime + 0.12
+    );
+
+    gain.gain.setValueAtTime(0.12, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.15);
+
+    oscillator.connect(gain);
+    gain.connect(audio.destination);
+    oscillator.start();
+    oscillator.stop(audio.currentTime + 0.16);
+  } catch (error) {
+    console.warn("Audio is unavailable", error);
+  }
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  $("soundBtn").textContent = soundOn ? "🔊 Садо" : "🔇 Бесадо";
+  if (soundOn) playSound();
+}
+
+function bindControls() {
+  $("freeFlightBtn").addEventListener("click", () => {
+    playSound();
+    startGame("free");
   });
 
-document.getElementById("backBtn")
-  .addEventListener("click", () => {
-    document.getElementById("missionPanel").classList.add("hidden");
-    document.getElementById("mainMenu").classList.remove("hidden");
+  $("missionBtn").addEventListener("click", () => setPanel("missions"));
+  $("backBtn").addEventListener("click", () => setPanel("main"));
+
+  document.querySelectorAll("[data-mission]").forEach(button => {
+    button.addEventListener("click", () => {
+      playSound();
+      startGame(button.dataset.mission);
+    });
   });
 
-document.querySelectorAll("[data-mission]").forEach(button => {
-  button.addEventListener("click", () => startGame(button.dataset.mission));
-});
+  $("pauseBtn").addEventListener("click", pauseGame);
+  $("resumeBtn").addEventListener("click", resumeGame);
+  $("exitBtn").addEventListener("click", showMenu);
+  $("resetBtn").addEventListener("click", () => startGame(mission));
+  $("soundBtn").addEventListener("click", toggleSound);
+  $("againBtn").addEventListener("click", () => startGame(mission));
+  $("resultMenuBtn").addEventListener("click", showMenu);
 
-document.getElementById("pauseBtn")
-  .addEventListener("click", pauseGame);
+  window.addEventListener("keydown", event => {
+    keys[event.key] = true;
+    keys[event.key.toLowerCase()] = true;
 
-document.getElementById("resumeBtn")
-  .addEventListener("click", resumeGame);
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
+      event.preventDefault();
+    }
 
-document.getElementById("exitBtn")
-  .addEventListener("click", exitToMenu);
-
-document.getElementById("resetBtn")
-  .addEventListener("click", () => startGame(mission));
-
-document.getElementById("againBtn")
-  .addEventListener("click", () => startGame(mission));
-
-document.getElementById("resultMenuBtn")
-  .addEventListener("click", exitToMenu);
-
-document.getElementById("soundBtn")
-  .addEventListener("click", () => {
-    muted = !muted;
-    document.getElementById("soundBtn").textContent = muted ? "♫̸" : "♫";
+    if (event.key === "Escape" && running && !paused) pauseGame();
   });
 
-window.addEventListener("resize", resize);
+  window.addEventListener("keyup", event => {
+    keys[event.key] = false;
+    keys[event.key.toLowerCase()] = false;
+  });
 
-resize();
+  document.querySelectorAll("[data-control]").forEach(button => {
+    const control = button.dataset.control;
+
+    const start = event => {
+      event.preventDefault();
+      touch[control] = true;
+      try { button.setPointerCapture(event.pointerId); } catch (_) {}
+    };
+
+    const stop = event => {
+      event.preventDefault();
+      touch[control] = false;
+    };
+
+    button.addEventListener("pointerdown", start);
+    button.addEventListener("pointerup", stop);
+    button.addEventListener("pointercancel", stop);
+    button.addEventListener("lostpointercapture", stop);
+  });
+
+  window.addEventListener("blur", () => {
+    for (const key in keys) keys[key] = false;
+    for (const key in touch) touch[key] = false;
+  });
+
+  window.addEventListener("resize", resizeCanvas);
+}
+
+function initializeGame() {
+  makeWorld();
+  bindControls();
+  resizeCanvas();
+  setPanel("main");
+}
+
+initializeGame();
